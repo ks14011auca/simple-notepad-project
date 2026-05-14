@@ -117,3 +117,6 @@ fabric.properties
 *.out
 *.app
 notepad
+
+# Local CLion files
+.idea/
