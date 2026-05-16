@@ -14,6 +14,8 @@
 #include <QKeySequence>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QMenu>
+#include <QPoint>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSize>
@@ -40,6 +42,13 @@ main_window::main_window()
     editor = new QTextEdit(this);
     setCentralWidget(editor);
 
+    setup_spell_checker();
+
+    editor->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(editor, &QTextEdit::customContextMenuRequested, this, [this](const QPoint& position) {
+        show_spelling_menu(position);
+    });
+
     transforms.push_back(std::make_unique<uppercase_transform>());
     transforms.push_back(std::make_unique<lowercase_transform>());
     transforms.push_back(std::make_unique<capitalize_transform>());
@@ -58,6 +67,19 @@ main_window::main_window()
 }
 
 main_window::~main_window() = default;
+
+void main_window::setup_spell_checker()
+{
+    spelling_dictionary = std::make_unique<spell_checker>();
+
+    if (!spelling_dictionary->load("data/words.txt")) {
+        QMessageBox::critical(this, "Error", "Could not load data/words.txt");
+        return;
+    }
+
+    spelling_highlighter = std::make_unique<spell_checker_highlighter>(
+        editor->document(), *spelling_dictionary);
+}
 
 void main_window::setup_file_menu()
 {
@@ -201,6 +223,13 @@ void main_window::setup_search_menu()
 void main_window::setup_tools_menu()
 {
     auto* tools_menu = menuBar()->addMenu("Tools");
+
+    const auto* action_check_spelling = tools_menu->addAction("Check Spelling...");
+    connect(action_check_spelling, &QAction::triggered, this, [this] {
+        check_spelling();
+    });
+
+    tools_menu->addSeparator();
 
     const auto* action_word_freq = tools_menu->addAction("Word Frequency...");
     connect(action_word_freq, &QAction::triggered, this, [this] {
@@ -457,4 +486,56 @@ void main_window::show_word_frequency()
     ui.frequency_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
 
     dialog->exec();
+}
+
+void main_window::check_spelling() const
+{
+    if (spelling_highlighter) {
+        spelling_highlighter->rehighlight();
+    }
+}
+
+void main_window::show_spelling_menu(const QPoint& position)
+{
+    QTextCursor cursor = editor->cursorForPosition(position);
+    cursor.select(QTextCursor::WordUnderCursor);
+
+    const auto selected_text = cursor.selectedText();
+    const auto cleaned_word = spell_checker::clean_word(selected_text.toStdString());
+
+    if (!spelling_dictionary || cleaned_word.empty()
+        || !spelling_dictionary->is_misspelled(cleaned_word)) {
+        auto* menu = editor->createStandardContextMenu(position);
+        menu->exec(editor->mapToGlobal(position));
+        delete menu;
+        return;
+        }
+
+    QMenu menu(this);
+    const auto suggestions = spelling_dictionary->suggestions(cleaned_word);
+
+    if (suggestions.empty()) {
+        auto* no_suggestions = menu.addAction("No suggestions");
+        no_suggestions->setEnabled(false);
+    } else {
+        for (const auto& suggestion : suggestions) {
+            const auto replacement = QString::fromStdString(suggestion);
+            auto* action = menu.addAction(replacement);
+
+            connect(action, &QAction::triggered, this, [cursor, replacement]() mutable {
+                auto replacement_cursor = cursor;
+                replacement_cursor.insertText(replacement);
+            });
+        }
+    }
+
+    menu.addSeparator();
+
+    auto* ignore_action = menu.addAction("Ignore");
+    connect(ignore_action, &QAction::triggered, this, [this, cleaned_word] {
+        spelling_dictionary->ignore_word(cleaned_word);
+        check_spelling();
+    });
+
+    menu.exec(editor->mapToGlobal(position));
 }
