@@ -1,11 +1,15 @@
 #include "main_window.h"
 
 #include "notepad_exception.h"
+#include "sort.h"
 #include "ui_find_replace_dialog.h"
 #include "ui_word_frequency_dialog.h"
 
 #include <QAction>
 #include <QApplication>
+#include <QColor>
+#include <QColorDialog>
+#include <QFontDialog>
 #include <QFile>
 #include <QFileDialog>
 #include <QFont>
@@ -59,11 +63,20 @@ main_window::main_window()
     setup_edit_menu();
     setup_format_menu();
     setup_format_toolbar();
+    setup_view_menu();
     setup_search_menu();
     setup_tools_menu();
 
     // TODO: uncomment the line below after bringing code from the previous assignments.
-    // update_status_bar();
+    connect(editor, &QTextEdit::textChanged, this, [this] {
+    update_status_bar();
+});
+
+    connect(editor, &QTextEdit::cursorPositionChanged, this, [this] {
+        update_status_bar();
+    });
+
+    update_status_bar();
 }
 
 main_window::~main_window() = default;
@@ -167,6 +180,18 @@ void main_window::setup_format_menu()
             apply_transform(*transform_ptr);
         });
     }
+
+    format_menu->addSeparator();
+
+    auto* action_font = format_menu->addAction("Font...");
+    connect(action_font, &QAction::triggered, this, [this] {
+        choose_font();
+    });
+
+    auto* action_text_color = format_menu->addAction("Text Color...");
+    connect(action_text_color, &QAction::triggered, this, [this] {
+        choose_text_color();
+    });
 }
 
 void main_window::setup_format_toolbar()
@@ -207,6 +232,31 @@ void main_window::setup_format_toolbar()
             action_italic->setChecked(fmt.fontItalic());
             action_underline->setChecked(fmt.fontUnderline());
         });
+}
+
+void main_window::setup_view_menu()
+{
+    auto* view_menu = menuBar()->addMenu("View");
+
+    auto* action_zoom_in = view_menu->addAction("Zoom In");
+    action_zoom_in->setShortcut(QKeySequence::ZoomIn);
+    connect(action_zoom_in, &QAction::triggered, this, [this] {
+        editor->zoomIn(3);
+        zoom_steps += 3;
+    });
+
+    auto* action_zoom_out = view_menu->addAction("Zoom Out");
+    action_zoom_out->setShortcut(QKeySequence::ZoomOut);
+    connect(action_zoom_out, &QAction::triggered, this, [this] {
+        editor->zoomOut(3);
+        zoom_steps -= 3;
+    });
+
+    auto* action_reset_zoom = view_menu->addAction("Reset Zoom");
+    action_reset_zoom->setShortcut(QKeySequence("Ctrl+0"));
+    connect(action_reset_zoom, &QAction::triggered, this, [this] {
+        reset_zoom();
+    });
 }
 
 void main_window::setup_search_menu()
@@ -339,6 +389,81 @@ void main_window::update_title()
     }
 }
 
+void main_window::update_status_bar()
+{
+    const auto text = editor->toPlainText();
+
+    int word_count = 0;
+    static const QRegularExpression word_expression("\\b\\w+\\b");
+    auto matches = word_expression.globalMatch(text);
+
+    while (matches.hasNext()) {
+        matches.next();
+        ++word_count;
+    }
+
+    const int line_count = editor->document()->blockCount();
+
+    const auto cursor = editor->textCursor();
+    const int line = cursor.blockNumber() + 1;
+    const int column = cursor.positionInBlock() + 1;
+
+    statusBar()->showMessage(QString("Words: %1  Lines: %2  Line: %3  Column: %4")
+            .arg(word_count)
+            .arg(line_count)
+            .arg(line)
+            .arg(column));
+}
+
+void main_window::choose_font()
+{
+    bool ok = false;
+    const auto font = QFontDialog::getFont(&ok, editor->currentFont(), this, "Choose Font");
+
+    if (!ok) {
+        return;
+    }
+
+    QTextCharFormat format;
+    format.setFont(font);
+    merge_format_on_selection_or_document(format);
+}
+
+void main_window::choose_text_color()
+{
+    const auto color = QColorDialog::getColor(editor->textColor(), this, "Choose Text Color");
+
+    if (!color.isValid()) {
+        return;
+    }
+
+    QTextCharFormat format;
+    format.setForeground(color);
+    merge_format_on_selection_or_document(format);
+}
+
+void main_window::merge_format_on_selection_or_document(const QTextCharFormat& format) const
+{
+    auto cursor = editor->textCursor();
+
+    if (!cursor.hasSelection()) {
+        cursor.select(QTextCursor::Document);
+    }
+
+    cursor.mergeCharFormat(format);
+    editor->mergeCurrentCharFormat(format);
+}
+
+void main_window::reset_zoom()
+{
+    if (zoom_steps > 0) {
+        editor->zoomOut(zoom_steps);
+    } else if (zoom_steps < 0) {
+        editor->zoomIn(-zoom_steps);
+    }
+
+    zoom_steps = 0;
+}
 // TODO: bring the status bar management code from the previous assignments.
 
 void main_window::show_find_replace_dialog()
@@ -456,10 +581,7 @@ void main_window::show_word_frequency()
     }
 
     std::vector<std::pair<std::string, int>> sorted_freq(freq.begin(), freq.end());
-    std::sort(sorted_freq.begin(), sorted_freq.end(),
-        [](const auto& a, const auto& b) {
-            return a.second > b.second;
-        });
+    sort_word_frequencies(sorted_freq);
 
     auto* dialog = new QDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);

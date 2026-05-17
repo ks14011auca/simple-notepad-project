@@ -8,6 +8,7 @@
 #include <QDialog>
 #include <QMainWindow>
 #include <QString>
+#include <QTextCharFormat>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QPoint>
@@ -29,6 +30,7 @@ private:
     void setup_edit_menu();
     void setup_format_menu();
     void setup_format_toolbar();
+    void setup_view_menu();
     void setup_search_menu();
     void setup_tools_menu();
 
@@ -38,10 +40,15 @@ private:
     void save_file();
     void save_file_as();
     void update_title();
+    void update_status_bar();
 
     // TODO: bring the status bar management code from the previous assignments.
 
     void apply_transform(const text_transform& transform) const;
+    void choose_font();
+    void choose_text_color();
+    void merge_format_on_selection_or_document(const QTextCharFormat& format) const;
+    void reset_zoom();
 
     void show_find_replace_dialog();
     void find_next(const QString& term, QTextDocument::FindFlags flags = QTextDocument::FindFlags()) const;
@@ -57,6 +64,8 @@ private:
     QTextEdit* editor{ nullptr };
     QString current_file;
     std::vector<std::unique_ptr<text_transform>> transforms;
+
+    int zoom_steps { 0 };
 
     QDialog* find_replace_dlg{ nullptr };
     std::unique_ptr<Ui::find_replace_dialog> find_replace_ui;
