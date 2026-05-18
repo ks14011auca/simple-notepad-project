@@ -69,8 +69,8 @@ main_window::main_window()
 
     // TODO: uncomment the line below after bringing code from the previous assignments.
     connect(editor, &QTextEdit::textChanged, this, [this] {
-    update_status_bar();
-});
+        update_status_bar();
+    });
 
     connect(editor, &QTextEdit::cursorPositionChanged, this, [this] {
         update_status_bar();
@@ -409,10 +409,10 @@ void main_window::update_status_bar()
     const int column = cursor.positionInBlock() + 1;
 
     statusBar()->showMessage(QString("Words: %1  Lines: %2  Line: %3  Column: %4")
-            .arg(word_count)
-            .arg(line_count)
-            .arg(line)
-            .arg(column));
+                             .arg(word_count)
+                             .arg(line_count)
+                             .arg(line)
+                             .arg(column));
 }
 
 void main_window::choose_font()
@@ -464,6 +464,7 @@ void main_window::reset_zoom()
 
     zoom_steps = 0;
 }
+
 // TODO: bring the status bar management code from the previous assignments.
 
 void main_window::show_find_replace_dialog()
@@ -631,7 +632,7 @@ void main_window::show_spelling_menu(const QPoint& position)
         menu->exec(editor->mapToGlobal(position));
         delete menu;
         return;
-        }
+    }
 
     QMenu menu(this);
     const auto suggestions = spelling_dictionary->suggestions(cleaned_word);

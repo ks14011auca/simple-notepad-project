@@ -65,7 +65,7 @@ private:
     QString current_file;
     std::vector<std::unique_ptr<text_transform>> transforms;
 
-    int zoom_steps { 0 };
+    int zoom_steps{ 0 };
 
     QDialog* find_replace_dlg{ nullptr };
     std::unique_ptr<Ui::find_replace_dialog> find_replace_ui;
