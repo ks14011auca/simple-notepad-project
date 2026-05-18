@@ -98,6 +98,7 @@ public:
     }
 };
 
+
 class swap_case_transform : public text_transform {
 public:
     swap_case_transform()
